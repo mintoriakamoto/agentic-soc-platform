@@ -1,4 +1,14 @@
+import logging
 from functools import lru_cache
+
+from django.core.cache import cache
+
+logger = logging.getLogger(__name__)
+
+# Shared counter every process watches. A settings change bumps it; other processes notice the
+# change on their next refresh_if_stale() and drop their own caches.
+GENERATION_KEY = "runtime-config:generation:v1"
+_local_generation = None
 
 
 @lru_cache(maxsize=1)
@@ -121,7 +131,7 @@ def get_dashboard_refresh_interval_seconds():
     return get_runtime_config()["dashboard_refresh_interval_seconds"]
 
 
-def invalidate(group=None):
+def _clear_local(group=None):
     if group in {None, "llm"}:
         get_llm_configs.cache_clear()
     if group in {None, "threat_intel", "otx"}:
@@ -132,7 +142,56 @@ def invalidate(group=None):
         get_splunk_config.cache_clear()
     if group in {None, "siem", "elk"}:
         get_elk_config.cache_clear()
+    if group in {None, "siem", "splunk", "elk"}:
+        # Connected clients hold the old host and credentials, so they have to go too.
+        from integrations.siem.clients import reset_clients
+
+        reset_clients()
     if group in {None, "ldap"}:
         get_ldap_config.cache_clear()
     if group in {None, "runtime"}:
         get_runtime_config.cache_clear()
+
+
+def invalidate(group=None):
+    """Drop this process's cached config and tell every other process to do the same.
+
+    The caches above are per-process. Under gunicorn only the worker that served the settings
+    change would otherwise notice it, leaving sibling workers serving stale credentials until
+    they recycle. Bumping a shared generation counter closes that gap.
+    """
+    _clear_local(group)
+    _bump_generation()
+
+
+def _bump_generation():
+    global _local_generation
+    try:
+        _local_generation = cache.incr(GENERATION_KEY)
+    except ValueError:
+        # Key absent (first write, or evicted): seed it and adopt the seeded value.
+        cache.set(GENERATION_KEY, 1, timeout=None)
+        _local_generation = 1
+    except Exception:
+        logger.warning("Could not publish a runtime config invalidation; other processes may lag.")
+
+
+def refresh_if_stale():
+    """Adopt configuration changes made by another process.
+
+    Cheap enough to call on every request and every worker iteration: one Redis read, and a local
+    cache clear only when the generation actually moved.
+    """
+    global _local_generation
+    try:
+        current = cache.get(GENERATION_KEY)
+    except Exception:
+        logger.warning("Could not read the runtime config generation; serving locally cached values.")
+        return False
+
+    if current is None or current == _local_generation:
+        return False
+
+    _local_generation = current
+    _clear_local()
+    return True

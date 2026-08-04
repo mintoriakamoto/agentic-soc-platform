@@ -19,8 +19,10 @@ export interface AuthUser {
 
 interface AuthState {
   token: string | null
+  refreshToken: string | null
   user: AuthUser | null
-  setAuth: (token: string, user: AuthState['user']) => void
+  setAuth: (token: string, user: AuthState['user'], refreshToken?: string | null) => void
+  setToken: (token: string, refreshToken?: string | null) => void
   logout: () => void
 }
 
@@ -28,9 +30,15 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       token: null,
+      refreshToken: null,
       user: null,
-      setAuth: (token, user) => set({ token, user }),
-      logout: () => set({ token: null, user: null }),
+      // refreshToken is only replaced when a caller actually supplies one. Callers that just
+      // refresh the user profile omit it and must not clear the stored token.
+      setAuth: (token, user, refreshToken) =>
+        set((state) => ({ token, user, refreshToken: refreshToken ?? state.refreshToken })),
+      setToken: (token, refreshToken) =>
+        set((state) => ({ token, refreshToken: refreshToken ?? state.refreshToken })),
+      logout: () => set({ token: null, refreshToken: null, user: null }),
     }),
     { name: 'asp-auth' },
   ),

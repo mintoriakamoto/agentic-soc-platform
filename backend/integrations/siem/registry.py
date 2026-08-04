@@ -3,17 +3,19 @@ from functools import lru_cache
 from pathlib import Path
 
 import yaml
+from django.conf import settings
 
 from integrations.siem.models import IndexInfo, SchemaFieldInfo
-from asp import settings
 
 logger = logging.getLogger(__name__)
 
-CUSTOM_REGISTRY_DIR = Path(settings.CUSTOM_DIR) / "data" / "siem"
+
+def custom_registry_dir():
+    return Path(settings.CUSTOM_DIR) / "data" / "siem"
 
 
 def default_registry_dirs():
-    return [CUSTOM_REGISTRY_DIR]
+    return [custom_registry_dir()]
 
 
 def _iter_overlaid_yaml_files(*directories):

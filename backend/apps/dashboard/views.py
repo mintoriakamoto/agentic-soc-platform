@@ -4,7 +4,7 @@ from collections import Counter
 from datetime import timedelta
 
 from django.db import connection
-from django.db.models import Case as DbCase, Count, DateTimeField, FloatField, Min, Q, Sum, Value, When
+from django.db.models import Case as DbCase, Count, DateTimeField, FloatField, Q, Sum, Value, When
 from django.db.models.functions import Coalesce, TruncDay, TruncHour
 from django.utils import timezone
 from django_redis.exceptions import ConnectionInterrupted

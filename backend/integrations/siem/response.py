@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+from integrations.siem.backends import BackendQueryResult
 from integrations.siem.models import (
     AdaptiveQueryInput,
     ESQLQueryInput,

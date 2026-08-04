@@ -5,7 +5,7 @@ from datetime import UTC, timedelta
 
 from django.utils import timezone
 
-from apps.settings.runtime_config import get_elk_config, invalidate
+from apps.settings.runtime_config import get_elk_config, refresh_if_stale
 from apps.webhook.service import handle_kibana_webhook
 from integrations.siem.clients import get_elk_client
 
@@ -40,7 +40,7 @@ class ELKActionProcessor:
 
     @staticmethod
     def load_config():
-        invalidate("elk")
+        refresh_if_stale()
         return get_elk_config()
 
     @staticmethod

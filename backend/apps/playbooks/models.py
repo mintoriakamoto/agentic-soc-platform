@@ -27,6 +27,7 @@ class Playbook(BaseModel):
         help_text="Background job status (后台任务状态)",
     )
     job_id = models.CharField(max_length=255, blank=True, default="", help_text="Background job ID (后台任务 ID)")
+    started_at = models.DateTimeField(null=True, blank=True, help_text="Background job claim time, used to reap runs abandoned by a dead worker (后台任务领取时间)")
     remark = models.TextField(blank=True, default="", help_text="Execution remark (执行备注)")
 
     class Meta:

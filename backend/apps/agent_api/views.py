@@ -10,7 +10,7 @@ from rest_framework import parsers, permissions, status
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.views import APIView
 
-from apps.accounts.permissions import IsBusinessWriterOrReadOnly
+from apps.accounts.permissions import IsBusinessWriterOrReadOnly, IsUser as IsBusinessWriter
 from apps.accounts.models import UserApiKey
 from apps.alerts.models import Alert
 from apps.artifacts.models import Artifact
@@ -24,6 +24,7 @@ from apps.common.operation_timeout import run_with_operation_timeout
 from apps.common.redis_stream import RedisStreamClient
 from apps.enrichments.models import Enrichment, EnrichmentProvider
 from apps.knowledge.models import Knowledge
+from apps.agentic.services.custom import known_module_streams
 from apps.agentic.services.playbooks import create_pending_playbook_run, list_playbook_definitions
 from apps.playbooks.models import Playbook
 from integrations.cmdb.service import lookup_artifact_context
@@ -54,7 +55,7 @@ from .utils import bool_param, list_param, parse_tags, parse_timezone_aware_date
 
 API_VERSION = "v1"
 MIN_CLI_VERSION = "0.1.0"
-SERVER_VERSION = "0.5.0"
+SERVER_VERSION = settings.ASP_VERSION
 logger = logging.getLogger(__name__)
 FOUNDATION_CAPABILITIES = [
     "agent.version",
@@ -560,29 +561,38 @@ class CMDBLookupView(APIView):
 
 
 class DevStreamHeadView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsBusinessWriter]
 
     def get(self, request):
-        stream_name = request.query_params.get("stream_name")
-        if not stream_name:
-            raise ValidationError({"stream_name": "This query parameter is required."})
+        stream_name = _known_stream_name(request.query_params.get("stream_name"))
         n = _bounded_int(request.query_params.get("n"), default=3, maximum=100)
         data = RedisStreamClient().read_stream_head(stream_name, n)
         return agent_response(request, operation="dev.stream.head", data=data)
 
 
 class DevStreamReadView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsBusinessWriter]
 
     def get(self, request):
-        stream_name = request.query_params.get("stream_name")
+        stream_name = _known_stream_name(request.query_params.get("stream_name"))
         message_id = request.query_params.get("message_id")
-        if not stream_name:
-            raise ValidationError({"stream_name": "This query parameter is required."})
         if not message_id:
             raise ValidationError({"message_id": "This query parameter is required."})
         data = RedisStreamClient().read_stream_message_by_id(stream_name, message_id)
         return agent_response(request, operation="dev.stream.read", data=data)
+
+
+def _known_stream_name(stream_name):
+    """Only allow streams a declared module owns.
+
+    Raw stream contents are unredacted SIEM data, so the name cannot be a free-form Redis key —
+    that would let any caller read arbitrary keys and would 500 on non-stream types.
+    """
+    if not stream_name:
+        raise ValidationError({"stream_name": "This query parameter is required."})
+    if stream_name not in known_module_streams():
+        raise ValidationError({"stream_name": f"Not a declared module stream: {stream_name}"})
+    return stream_name
 
 
 def _record_id(value):

@@ -51,9 +51,9 @@ def _worker_label(worker_name):
 
 
 def _refresh_runtime_config_cache():
-    from apps.settings.runtime_config import invalidate
+    from apps.settings.runtime_config import refresh_if_stale
 
-    invalidate()
+    refresh_if_stale()
 
 
 def _run_once_or_raise(worker_label, run_once):

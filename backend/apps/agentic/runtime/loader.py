@@ -12,6 +12,10 @@ class ScriptDefinition:
     script_class: type
 
 
+# (path, class_name) -> ((mtime_ns, size), definition)
+_DEFINITION_CACHE = {}
+
+
 def _load_python_file(path):
     resolved_path = Path(path).resolve()
     digest = hashlib.sha256(str(resolved_path).encode("utf-8")).hexdigest()[:12]
@@ -32,8 +36,29 @@ def _file_has_relative_import(tree):
     return any(isinstance(node, ast.ImportFrom) and node.level > 0 for node in ast.walk(tree))
 
 
-def discover_script_class(path, *, class_name, base_class):
+def discover_script_class(path, *, class_name, base_class, use_cache=False):
+    """Load ``class_name`` from a script file.
+
+    Workers call this on every iteration, so ``use_cache`` keeps the previously loaded class as
+    long as the file is untouched — without it a module is re-parsed and re-executed several times
+    a minute, and module-level state can never be reused. The cache is keyed on mtime and size, so
+    editing a script still takes effect on the next pass.
+    """
     path = Path(path)
+    if use_cache:
+        cache_key = (str(path), class_name)
+        stat = path.stat()
+        fingerprint = (stat.st_mtime_ns, stat.st_size)
+        cached = _DEFINITION_CACHE.get(cache_key)
+        if cached is not None and cached[0] == fingerprint:
+            return cached[1]
+        definition = _discover_script_class(path, class_name=class_name, base_class=base_class)
+        _DEFINITION_CACHE[cache_key] = (fingerprint, definition)
+        return definition
+    return _discover_script_class(path, class_name=class_name, base_class=base_class)
+
+
+def _discover_script_class(path, *, class_name, base_class):
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     if not _file_defines_class(tree, class_name):
         return None

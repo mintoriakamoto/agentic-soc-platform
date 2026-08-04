@@ -37,8 +37,8 @@ def default_consumer_name(module_name):
     return f"{socket.gethostname()}-{os.getpid()}-{safe_name}"
 
 
-def _definition_from_script(path):
-    definition = discover_script_class(path, class_name="Module", base_class=BaseModule)
+def _definition_from_script(path, *, use_cache=False):
+    definition = discover_script_class(path, class_name="Module", base_class=BaseModule, use_cache=use_cache)
     if definition is None:
         return None
     stream_name = getattr(definition.script_class, "STREAM_NAME", "")
@@ -53,7 +53,7 @@ def _definition_from_script(path):
     )
 
 
-def scan_module_definitions(*, scripts_dir=None, scripts_dirs=None):
+def scan_module_definitions(*, scripts_dir=None, scripts_dirs=None, use_cache=False):
     if scripts_dirs is not None and scripts_dir is not None:
         raise ValueError("Use scripts_dir or scripts_dirs, not both.")
     paths = (
@@ -65,7 +65,7 @@ def scan_module_definitions(*, scripts_dir=None, scripts_dirs=None):
     errors = []
     for path in paths:
         try:
-            definition = _definition_from_script(path)
+            definition = _definition_from_script(path, use_cache=use_cache)
         except Exception:
             logger.exception("Failed to load module definition from %s", path)
             errors.append({"path": str(path), "error": "Failed to load module definition."})
@@ -75,8 +75,10 @@ def scan_module_definitions(*, scripts_dir=None, scripts_dirs=None):
     return definitions, errors
 
 
-def discover_module_definitions(*, scripts_dir=None, scripts_dirs=None):
-    definitions, _errors = scan_module_definitions(scripts_dir=scripts_dir, scripts_dirs=scripts_dirs)
+def discover_module_definitions(*, scripts_dir=None, scripts_dirs=None, use_cache=False):
+    definitions, _errors = scan_module_definitions(
+        scripts_dir=scripts_dir, scripts_dirs=scripts_dirs, use_cache=use_cache
+    )
     return definitions
 
 
@@ -118,7 +120,9 @@ def run_module_once(definition, *, redis_client=None, block_ms=None, consumer_na
 def run_all_modules_once(*, redis_client=None, block_ms=None, scripts_dir=None):
     redis_client = redis_client or RedisStreamClient()
     any_processed = False
-    for definition in discover_module_definitions(scripts_dir=scripts_dir):
+    # Cached: this runs every worker iteration, and re-executing every module file several times
+    # a minute is pure overhead. Edits still land, keyed on mtime and size.
+    for definition in discover_module_definitions(scripts_dir=scripts_dir, use_cache=True):
         processed = run_module_once(definition, redis_client=redis_client, block_ms=block_ms)
         any_processed = any_processed or processed
     return any_processed

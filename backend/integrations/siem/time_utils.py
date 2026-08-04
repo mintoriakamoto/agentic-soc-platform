@@ -14,8 +14,8 @@ def normalize_time_input(value: Any, relative_base: datetime) -> str:
     else:
         try:
             parsed = dateutil_parser.isoparse(str(value))
-        except (ValueError, OverflowError):
-            raise ValueError(f"Unable to parse ISO 8601 time value: {value}")
+        except (ValueError, OverflowError) as exc:
+            raise ValueError(f"Unable to parse ISO 8601 time value: {value}") from exc
 
     if parsed.tzinfo is None or parsed.utcoffset() is None:
         raise ValueError("Time values must include timezone, e.g. 2026-06-23T12:00:00Z or 2026-06-23T20:00:00+08:00")

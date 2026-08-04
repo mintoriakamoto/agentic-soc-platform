@@ -144,6 +144,15 @@ class LoginSerializer(serializers.Serializer):
 
 
 class UserApiKeySerializer(serializers.ModelSerializer):
+    """Lists and detail reads only ever expose a masked key.
+
+    The plaintext key is returned once, by the create and refresh endpoints, via
+    ``UserApiKeyRevealSerializer``. Listing it on every read turns any response log or XSS into a
+    handout of long-lived credentials.
+    """
+
+    key = serializers.SerializerMethodField()
+
     class Meta:
         model = UserApiKey
         fields = (
@@ -156,3 +165,18 @@ class UserApiKeySerializer(serializers.ModelSerializer):
             "updated_at",
         )
         read_only_fields = ("id", "key", "last_used_at", "created_at", "updated_at")
+
+    def get_key(self, obj):
+        return mask_api_key(obj.key)
+
+
+class UserApiKeyRevealSerializer(UserApiKeySerializer):
+    """Returns the usable key. Only for the one response that issues or rotates it."""
+
+    key = serializers.CharField(read_only=True)
+
+
+def mask_api_key(key):
+    if not key:
+        return ""
+    return f"{key[:8]}…{key[-4:]}"
