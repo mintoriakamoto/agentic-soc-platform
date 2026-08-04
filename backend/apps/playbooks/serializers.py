@@ -12,4 +12,6 @@ class PlaybookSerializer(serializers.ModelSerializer):
     class Meta:
         model = Playbook
         fields = "__all__"
-        read_only_fields = ("id", "playbook_id", "created_at", "updated_at")
+        # started_at is the reaper's lease stamp: a client that could write it could keep an
+        # abandoned run alive forever, or fail a live one.
+        read_only_fields = ("id", "playbook_id", "created_at", "updated_at", "started_at")
