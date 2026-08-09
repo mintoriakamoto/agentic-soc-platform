@@ -31,10 +31,6 @@ Status: Confirmed
 
 复用 `CaseAnalysisJob.result_json`，不创建独立 Prediction 表。
 
-### Merge origin
-
-案件合并会把历史 Job 迁入目标，但源上下文生成的 Job 不能作为目标预测。Job 必须保留 immutable origin Case identity；Evaluation 只选择 origin=target 的 Job。
-
 ## 4. Metadata exclusion
 
 AI Quality 不新增、使用或展示：
@@ -98,7 +94,7 @@ Evaluation 构建失败不得阻止 Case Close、Reopen 或人工字段修改：
 Prediction Coverage：
 
 ```text
-Evaluated Cases / all filtered non-merged Closed Cases
+Evaluated Cases / all filtered Closed Cases
 ```
 
 No prediction 和 Invalid prediction 都在分母、不在分子。页面单独显示 Invalid count。
@@ -181,20 +177,17 @@ Severity、Impact、Priority、Confidence：
 - human_severity。
 - 各 agrees 字段按实际查询计划决定组合索引。
 
-## 10. Case merge
+## 10. Case relationships
 
-- merged source Evaluation 保留在只读源 Case。
-- merged source 从所有全局聚合和默认样本列表排除。
-- target 不继承 source Evaluation。
-- 迁入的 source-origin Jobs 不作为 target 参考。
-- target 后续 Closed 时按自己的 eligible Job 创建 Evaluation。
+- Case Relationship 不改变 Evaluation 创建、选择或聚合。
+- 每个 Case 只使用自身 eligible Job 和人工字段。
+- 正式关系与 Artifact suggestion 均不进入 AI Quality 查询条件。
 
 ## 11. Historical backfill
 
 升级时/升级后管理命令回填：
 
 - 当前 Closed。
-- 未合并。
 - 使用当前人工字段。
 - 选择 closed_time 前最后 eligible 成功 Job。
 - 没有 Job 创建 No prediction。
@@ -337,13 +330,13 @@ Case Investigation 或 Case detail 的只读字段返回当前 Evaluation。User
 
 1. 五个字段比较正确且不合成总分。
 2. 最新 eligible pre-close Job 选择正确。
-3. source-origin merged Job 被排除。
+3. Case Relationship 不改变 reference Job 选择。
 4. Unknown 和 empty 语义正确。
 5. Verdict matrix 和 ordinal direction/distance 正确。
 6. Close 创建，Closed edit 重建，Reopen 删除，Reclose 重建。
 7. Evaluation 故障不阻止 Case 业务操作，并可管理命令修复。
 8. 历史 Closed Case 正确回填，不调用 LLM。
-9. merged source 保留但排除统计。
+9. 关联 Case 仍分别进入各自符合条件的统计样本。
 10. Coverage denominator/numerator 和 Invalid count 正确。
 11. Admin-only 全局页面，所有角色单案可见。
 12. 筛选使用 Evaluation snapshot 和 closed_time。

@@ -1,3 +1,5 @@
+import uuid
+
 from django.conf import settings
 from django.db import models
 
@@ -27,7 +29,10 @@ class Playbook(BaseModel):
         help_text="Background job status (后台任务状态)",
     )
     job_id = models.CharField(max_length=255, blank=True, default="", help_text="Background job ID (后台任务 ID)")
-    started_at = models.DateTimeField(null=True, blank=True, help_text="Background job claim time, used to reap runs abandoned by a dead worker (后台任务领取时间)")
+    # started_at doubles as the reaper's lease stamp: a run still Running long after it was
+    # claimed had its worker die, and gets failed.
+    started_at = models.DateTimeField(null=True, blank=True, help_text="Execution start time (执行开始时间)")
+    finished_at = models.DateTimeField(null=True, blank=True, help_text="Execution finish time (执行结束时间)")
     remark = models.TextField(blank=True, default="", help_text="Execution remark (执行备注)")
 
     class Meta:
@@ -42,3 +47,31 @@ class Playbook(BaseModel):
 
     def __str__(self):
         return self.name or str(self.id)
+
+
+class PlaybookRunMessage(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    playbook_run = models.ForeignKey(
+        Playbook,
+        on_delete=models.CASCADE,
+        related_name="run_messages",
+    )
+    sequence = models.PositiveBigIntegerField()
+    message = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "playbook_run_messages"
+        ordering = ["sequence"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["playbook_run", "sequence"],
+                name="playbook_msg_run_seq_uniq",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["playbook_run", "sequence"],
+                name="playbook_msg_run_seq_idx",
+            ),
+        ]

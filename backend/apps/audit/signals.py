@@ -4,7 +4,7 @@ from django.db.models.signals import m2m_changed, post_delete, post_save, pre_de
 from django.dispatch import receiver
 
 from apps.common.models import BaseModel
-from .context import get_current_actor
+from .context import audit_is_suppressed, get_current_actor
 from .helpers import readable_label, write_relation_event
 from .models import AuditLog
 
@@ -12,6 +12,10 @@ RELATION_FK_FIELDS = {
     "alert": {"case": "alerts"},
     "playbook": {"case": "playbooks"},
     "enrichment": {"case": "enrichments", "alert": "enrichments", "artifact": "enrichments"},
+    "caserelationship": {
+        "source_case": "case_relationships",
+        "target_case": "case_relationships",
+    },
 }
 
 
@@ -73,7 +77,7 @@ def write_delete_relation_events(sender, instance):
 
 @receiver(pre_save)
 def capture_previous_state(sender, instance, **kwargs):
-    if not audit_model(sender) or not instance.pk:
+    if audit_is_suppressed() or not audit_model(sender) or not instance.pk:
         instance._audit_previous = None
         return
     instance._audit_previous = sender.objects.filter(pk=instance.pk).first()
@@ -81,7 +85,7 @@ def capture_previous_state(sender, instance, **kwargs):
 
 @receiver(pre_delete)
 def capture_delete_relation_parents(sender, instance, **kwargs):
-    if not audit_model(sender):
+    if audit_is_suppressed() or not audit_model(sender):
         return
     parents = {}
     for field_name in relation_fields(sender):
@@ -92,7 +96,7 @@ def capture_delete_relation_parents(sender, instance, **kwargs):
 
 @receiver(post_save)
 def log_save(sender, instance, created, **kwargs):
-    if not audit_model(sender):
+    if audit_is_suppressed() or not audit_model(sender):
         return
     action = "create" if created else "update"
     previous = getattr(instance, "_audit_previous", None)
@@ -110,7 +114,7 @@ def log_save(sender, instance, created, **kwargs):
 
 @receiver(post_delete)
 def log_delete(sender, instance, **kwargs):
-    if not audit_model(sender):
+    if audit_is_suppressed() or not audit_model(sender):
         return
     AuditLog.objects.create(
         content_type=ContentType.objects.get_for_model(sender),
@@ -124,6 +128,8 @@ def log_delete(sender, instance, **kwargs):
 
 @receiver(m2m_changed)
 def log_many_to_many_change(sender, instance, action, reverse, model, pk_set, **kwargs):
+    if audit_is_suppressed():
+        return
     if action not in {"post_add", "post_remove", "post_clear"}:
         return
     if not isinstance(instance, BaseModel):

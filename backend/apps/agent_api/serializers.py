@@ -30,7 +30,23 @@ def serialize_case(case, *, include_related=False):
     }
     if include_related:
         data["alerts"] = [serialize_alert(alert, include_related=False) for alert in case.alerts.all()[:50]]
+        data["relationships"] = [
+            serialize_case_relationship(relationship, case)
+            for relationship in _case_relationships(case)[:50]
+        ]
     return data
+
+
+def _case_relationships(case):
+    from apps.cases.services import relationships_for_case
+
+    return relationships_for_case(case)
+
+
+def serialize_case_relationship(relationship, case):
+    from apps.cases.services import relationship_for_case_payload
+
+    return relationship_for_case_payload(relationship, case)
 
 
 def serialize_alert(alert, *, include_related=False):

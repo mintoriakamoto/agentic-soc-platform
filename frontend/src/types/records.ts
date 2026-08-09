@@ -176,6 +176,7 @@ export interface ResourceConfig<RecordType = Record<string, unknown>> {
   filters: ResourceFilterConfig[]
   advancedFilters?: AdvancedFilterFieldConfig[]
   editableFields?: EditableFieldConfig[]
+  readOnly?: boolean
   basicView?: (record: RecordType, options?: {
     onOpenResource?: (resourceKey: string, rowId: string | number, options?: OpenResourceOptions) => void
     onChanged?: () => void

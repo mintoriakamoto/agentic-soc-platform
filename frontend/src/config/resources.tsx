@@ -10,13 +10,14 @@ import {
     SyncOutlined,
     UserOutlined,
 } from '@ant-design/icons'
-import {BookOpenText, BrainCircuit, BriefcaseBusiness, Fingerprint, Siren, WandSparkles} from 'lucide-react'
+import {BookOpenText, BrainCircuit, BriefcaseBusiness, Fingerprint, Link2, Siren, WandSparkles} from 'lucide-react'
 import AlertBasicView from '../components/AlertBasicView'
 import ArtifactBasicView from '../components/ArtifactBasicView'
 import CaseBasicView from '../components/CaseBasicView'
 import CaseInvestigationView from '../components/CaseInvestigationView'
 import CaseKnowledgeView from '../components/CaseKnowledgeView'
 import CasePlaybookAction from '../components/CasePlaybookRunModal'
+import CaseRelationshipsView from '../components/CaseRelationshipsView'
 import EnrichmentBasicView from '../components/EnrichmentBasicView'
 import KnowledgeBasicView from '../components/KnowledgeBasicView'
 import OverflowTags from '../components/OverflowTags'
@@ -36,6 +37,7 @@ import {
     emptyValue,
     emptyValueNode,
     formatDateTime,
+    formatDurationSeconds,
     knowledgeSourceTag,
     productCategoryTag,
     severityTag,
@@ -249,6 +251,18 @@ const emptyTabs = {
             render: (record: RecordRow, options?: RecordTabRenderOptions) => relatedEnrichmentsTable('case', record, options?.onOpenResource, options?.onChanged),
         },
         {
+            key: 'related-cases',
+            label: 'Related Cases',
+            icon: <Link2 {...lucideIconProps}/>,
+            render: (record: RecordRow, options?: RecordTabRenderOptions) => (
+                <CaseRelationshipsView
+                    caseId={String(record.id || '')}
+                    onOpenCase={(caseId) => options?.onOpenResource?.('cases', caseId)}
+                    onChanged={options?.onChanged}
+                />
+            ),
+        },
+        {
             key: 'knowledge',
             label: 'Knowledge',
             icon: <BookOpenText {...lucideIconProps}/>,
@@ -447,6 +461,11 @@ export const resourceConfigs: Record<string, ResourceConfig<RecordRow>> = {
                 dataIndex: 'enrichment_count',
                 defaultVisible: true,
                 openRecordTab: 'enrichments',
+                render: viewRelatedLabel,
+            }),
+            column('relationships_link', 'Related Cases', L132, {
+                dataIndex: 'relationship_count',
+                openRecordTab: 'related-cases',
                 render: viewRelatedLabel,
             }),
             column('category', 'Category', L132, {defaultVisible: true, render: (v) => caseCategoryTag(String(v || ''))}),
@@ -824,6 +843,7 @@ export const resourceConfigs: Record<string, ResourceConfig<RecordRow>> = {
         icon: <BrainCircuit {...lucideIconProps}/>,
         endpoint: '/playbooks/',
         rowKey: 'id',
+        readOnly: true,
         searchPlaceholder: 'Playbook ID, Name, Job ID, Remark',
         filters: [{key: 'job_status', label: 'Status', valueType: 'select', width: L132}],
         advancedFilters: [
@@ -835,6 +855,8 @@ export const resourceConfigs: Record<string, ResourceConfig<RecordRow>> = {
             field('remark', 'Remark', 'text'),
             field('created_at', 'Created Time', 'date'),
             field('updated_at', 'Updated Time', 'date'),
+            field('started_at', 'Started Time', 'date'),
+            field('finished_at', 'Finished Time', 'date'),
         ],
         columns: [
             column('playbook_id', 'Playbook ID', L160, {required: true, defaultVisible: true, fixed: 'left', openRecord: true, uppercase: true}),
@@ -850,6 +872,9 @@ export const resourceConfigs: Record<string, ResourceConfig<RecordRow>> = {
             }),
             column('user_username', 'User', L160, {defaultVisible: true}),
             column('job_id', 'Job ID', L240, {defaultVisible: true}),
+            column('started_at', 'Started Time', L160, {defaultVisible: true, sorter: true, render: date('started_at')}),
+            column('finished_at', 'Finished Time', L160, {defaultVisible: true, sorter: true, render: date('finished_at')}),
+            column('duration_seconds', 'Duration', L132, {defaultVisible: true, render: (v) => formatDurationSeconds(v)}),
             column('created_at', 'Created Time', L160, {defaultVisible: true, sorter: true, render: date('created_at')}),
             column('updated_at', 'Updated Time', L160, {defaultVisible: true, sorter: true, render: date('updated_at')}),
             column('user_input', 'User Input', L400),

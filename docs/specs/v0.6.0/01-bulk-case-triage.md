@@ -4,7 +4,7 @@ Status: Confirmed
 
 ## 1. Purpose
 
-允许分析师在 Case 列表中明确勾选一组 Case，一次修改相同的分诊字段。该功能优化重复人工操作，不替代案件合并、抑制规则、AI 分析或 Playbook。
+允许分析师在 Case 列表中明确勾选一组 Case，一次修改相同的分诊字段。该功能优化重复人工操作，不替代 Case Relationships、抑制规则、AI 分析或 Playbook。
 
 ## 2. Scope
 

@@ -6,6 +6,7 @@ import type {ColumnsType} from 'antd/es/table'
 import client from '../api/client'
 import OverflowTags from './OverflowTags'
 import {comfortableTagProps} from '../utils/tagStyles'
+import {severityTag} from '../utils/recordDisplay'
 
 type RecordRow = Record<string, unknown>
 
@@ -13,6 +14,7 @@ interface PlaybookDefinition {
   name: string
   description: string
   tags: string[]
+  risk_level: 'Low' | 'Medium' | 'High' | 'Critical'
 }
 
 interface CasePlaybookActionProps {
@@ -156,10 +158,22 @@ function CasePlaybookRunModal({ open, caseId, onClose, onSubmitted }: CasePlaybo
         return [
           definition.name,
           definition.description,
+          definition.risk_level,
           ...normalizeTags(definition.tags),
         ].some((value) => value.toLowerCase().includes(keyword))
       },
       render: (name: string) => <Typography.Text strong>{name}</Typography.Text>,
+    },
+    {
+      title: 'Risk',
+      dataIndex: 'risk_level',
+      width: 140,
+      filters: ['Low', 'Medium', 'High', 'Critical'].map((riskLevel) => ({
+        text: riskLevel,
+        value: riskLevel,
+      })),
+      onFilter: (filterValue, definition) => definition.risk_level === filterValue,
+      render: (riskLevel: string) => severityTag(riskLevel),
     },
     {
       title: 'Tags',
@@ -256,7 +270,10 @@ function CasePlaybookRunModal({ open, caseId, onClose, onSubmitted }: CasePlaybo
             <>
               <div>
                 <Typography.Title level={5} style={{ marginTop: 0 }}>{selectedDefinition.name}</Typography.Title>
-                <PlaybookTags tags={selectedDefinition.tags} />
+                <Space wrap>
+                  {severityTag(selectedDefinition.risk_level)}
+                  <PlaybookTags tags={selectedDefinition.tags} />
+                </Space>
               </div>
               <Typography.Paragraph style={{ whiteSpace: 'pre-wrap', marginBottom: 0 }}>
                 {selectedDefinition.description || 'No description.'}

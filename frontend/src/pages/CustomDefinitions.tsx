@@ -10,6 +10,7 @@ import IconTabLabel from '../components/IconTabLabel'
 import OverflowTags from '../components/OverflowTags'
 import CustomVariablesSettings from './CustomVariablesSettings'
 import {comfortableTagProps} from '../utils/tagStyles'
+import {severityTag} from '../utils/recordDisplay'
 
 type SourceType = 'official' | 'custom'
 type SourceFilter = 'all' | SourceType
@@ -59,6 +60,7 @@ interface PlaybookDefinition {
   name: string
   description: string
   tags: string[]
+  risk_level: 'Low' | 'Medium' | 'High' | 'Critical'
   source: SourceType
   path: string
 }
@@ -426,6 +428,7 @@ function PlaybooksTab() {
     filterBySource(result?.items || [], source).filter((item) => includesSearch([
       item.name,
       item.description,
+      item.risk_level,
       item.path,
       ...item.tags,
     ], search))
@@ -434,6 +437,7 @@ function PlaybooksTab() {
   const columns = useMemo<ColumnsType<PlaybookDefinition>>(() => [
     { title: 'Playbook', dataIndex: 'name', width: 260, render: (name: string) => <Typography.Text strong>{name}</Typography.Text> },
     { title: 'Source', dataIndex: 'source', width: 110, render: (value: SourceType) => <SourceTag source={value} /> },
+    { title: 'Risk', dataIndex: 'risk_level', width: 110, render: (value: string) => severityTag(value) },
     {
       title: 'Tags',
       dataIndex: 'tags',
@@ -472,6 +476,7 @@ function PlaybooksTab() {
           <Flex vertical gap={16} style={{ width: '100%' }}>
             <Space>
               <SourceTag source={selected.source} />
+              {severityTag(selected.risk_level)}
               {(selected.tags || []).map((tag) => <Tag {...comfortableTagProps} key={tag} color={PLAYBOOK_TAG_COLORS[tag] || 'blue'}>{tag}</Tag>)}
             </Space>
             <Typography.Paragraph style={{ whiteSpace: 'pre-wrap' }}>{selected.description || 'No description.'}</Typography.Paragraph>

@@ -2,10 +2,10 @@ import type {ReactNode} from 'react'
 import type {DescriptionsProps} from 'antd'
 import {Button, Descriptions} from 'antd'
 import {DescriptionValue} from './DescriptionValue'
-import DetailSectionDivider from './DetailSectionDivider'
 import {descriptionStyles} from './descriptionValueStyles'
-import {emptyValue} from '../utils/recordDisplay'
+import {emptyValue, formatDateTime, formatDurationSeconds} from '../utils/recordDisplay'
 import {monoTextStyle} from '../utils/typography'
+import PlaybookRunMessagesView from './PlaybookRunMessagesView'
 
 type RecordRow = Record<string, unknown>
 
@@ -22,19 +22,16 @@ const upperStringValue = (record: RecordRow, key: string) => {
   return displayValue === '—' ? displayValue : displayValue.toUpperCase()
 }
 
-function Section({ title, items, showTitle = true }: { title?: string; items: DescriptionsProps['items']; showTitle?: boolean }) {
+function SummarySection({items}: {items: DescriptionsProps['items']}) {
   return (
-    <div style={{ marginTop: showTitle ? 16 : 0 }}>
-      {showTitle && title && <DetailSectionDivider title={title} />}
-      <Descriptions
-        size="small"
-        layout="vertical"
-        colon={false}
-        column={4}
-        items={items}
-        styles={descriptionStyles}
-      />
-    </div>
+    <Descriptions
+      size="small"
+      layout="vertical"
+      colon={false}
+      column={4}
+      items={items}
+      styles={descriptionStyles}
+    />
   )
 }
 
@@ -57,6 +54,7 @@ function blockItem(key: string, label: string, children: string) {
 }
 
 export default function PlaybookBasicView({ record, onOpenResource, renderStatus }: PlaybookBasicViewProps) {
+  const playbookRunId = String(value(record, 'id') || '')
   const caseRowId = value(record, 'case_id') as string | number | null | undefined
   const caseReadableId = upperStringValue(record, 'case_readable_id')
   const caseLabel = caseReadableId === '—'
@@ -82,6 +80,9 @@ export default function PlaybookBasicView({ record, onOpenResource, renderStatus
     item('user', 'User', stringValue(record, 'user_username')),
     item('name', 'Name', stringValue(record, 'name')),
     { key: 'job-id', label: 'Job ID', children: <DescriptionValue><span style={monoTextStyle}>{stringValue(record, 'job_id')}</span></DescriptionValue> },
+    item('started-at', 'Started Time', formatDateTime(String(value(record, 'started_at') || ''))),
+    item('finished-at', 'Finished Time', formatDateTime(String(value(record, 'finished_at') || ''))),
+    item('duration', 'Duration', formatDurationSeconds(value(record, 'duration_seconds'))),
   ]
 
   const inputItems: DescriptionsProps['items'] = [
@@ -91,8 +92,28 @@ export default function PlaybookBasicView({ record, onOpenResource, renderStatus
 
   return (
     <div style={{ padding: '20px 20px 16px', overflow: 'auto', height: '100%', boxSizing: 'border-box' }}>
-      <Section showTitle={false} items={summaryItems} />
-      <Section title="Input & Result" items={inputItems} />
+      <SummarySection items={summaryItems} />
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'minmax(320px, 2fr) minmax(0, 3fr)',
+        gap: 24,
+        alignItems: 'start',
+        marginTop: 24,
+      }}>
+        <div style={{minWidth: 0}}>
+          <Descriptions
+            size="small"
+            layout="vertical"
+            colon={false}
+            column={4}
+            items={inputItems}
+            styles={descriptionStyles}
+          />
+        </div>
+        <div style={{minWidth: 0}}>
+          <PlaybookRunMessagesView playbookRunId={playbookRunId} refreshToken={record} />
+        </div>
+      </div>
     </div>
   )
 }

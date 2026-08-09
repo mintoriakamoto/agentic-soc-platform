@@ -31,6 +31,8 @@ def run_playbook_once(*, scripts_dir=None):
         _record_outcome(mark_playbook_failed, playbook_run, exc, "playbook")
         return True
 
+    # Recorded outside the try: a failure in the success path must not fall through to
+    # mark_playbook_failed, which would then raise on a row that is no longer Running.
     _record_outcome(mark_playbook_success, playbook_run, str(result), "playbook")
     return True
 

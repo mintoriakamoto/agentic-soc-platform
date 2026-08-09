@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.core.validators import MaxLengthValidator
 from django.db import models
 
 from apps.common.models import BaseModel
@@ -58,6 +59,12 @@ class CaseVerdict(models.TextChoices):
     MANAGED_EXTERNALLY = "Managed Externally"
     DUPLICATE = "Duplicate"
     OTHER = "Other"
+
+
+class CaseRelationshipType(models.TextChoices):
+    RELATED = "Related"
+    DUPLICATE_OF = "Duplicate of", "Duplicate of"
+    PARENT_OF = "Parent of", "Parent of"
 
 
 class CaseCategory(models.TextChoices):
@@ -125,3 +132,62 @@ class Case(BaseModel):
 
     def __str__(self):
         return self.title or str(self.id)
+
+
+class CaseRelationship(BaseModel):
+    source_case = models.ForeignKey(
+        Case,
+        on_delete=models.CASCADE,
+        related_name="outgoing_relationships",
+    )
+    target_case = models.ForeignKey(
+        Case,
+        on_delete=models.CASCADE,
+        related_name="incoming_relationships",
+    )
+    relationship_type = models.CharField(max_length=20, choices=CaseRelationshipType)
+    note = models.TextField(blank=True, default="", validators=[MaxLengthValidator(500)])
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="created_case_relationships",
+    )
+    pair_key = models.CharField(max_length=73, unique=True, editable=False)
+
+    @staticmethod
+    def build_pair_key(source_case_id, target_case_id):
+        first, second = sorted((str(source_case_id), str(target_case_id)))
+        return f"{first}:{second}"
+
+    def save(self, *args, **kwargs):
+        self.pair_key = self.build_pair_key(self.source_case_id, self.target_case_id)
+        return super().save(*args, **kwargs)
+
+    class Meta:
+        db_table = "case_relationships"
+        ordering = ["-created_at"]
+        constraints = [
+            models.CheckConstraint(
+                condition=~models.Q(source_case=models.F("target_case")),
+                name="case_rel_no_self",
+            ),
+            models.UniqueConstraint(
+                fields=["target_case"],
+                condition=models.Q(relationship_type=CaseRelationshipType.PARENT_OF),
+                name="case_rel_one_parent",
+            ),
+            models.UniqueConstraint(
+                fields=["source_case"],
+                condition=models.Q(relationship_type=CaseRelationshipType.DUPLICATE_OF),
+                name="case_rel_one_duplicate_target",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["source_case", "relationship_type"], name="case_rel_source_type_idx"),
+            models.Index(fields=["target_case", "relationship_type"], name="case_rel_target_type_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.source_case.case_id} {self.relationship_type} {self.target_case.case_id}"

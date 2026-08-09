@@ -10,23 +10,22 @@ from rest_framework.response import Response
 from apps.accounts.permissions import IsBusinessWriterOrReadOnly
 from apps.agentic.services.playbooks import create_pending_playbook_run, list_playbook_definitions
 from apps.audit.context import audit_actor
-from apps.audit.mixins import AuditActorMixin
 from apps.cases.models import Case
 from apps.common.advanced_filters import AdvancedFilterBackend
 from .models import Playbook
-from .serializers import PlaybookSerializer
+from .serializers import PlaybookRunMessageSerializer, PlaybookSerializer
 
 logger = logging.getLogger(__name__)
 
 
-class PlaybookViewSet(AuditActorMixin, viewsets.ModelViewSet):
+class PlaybookViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Playbook.objects.select_related("user", "case")
     serializer_class = PlaybookSerializer
     permission_classes = [permissions.IsAuthenticated, IsBusinessWriterOrReadOnly]
     lookup_field = "id"
     filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter, AdvancedFilterBackend)
     search_fields = ("playbook_id", "name", "job_id", "user_input", "remark")
-    ordering_fields = ("created_at", "updated_at", "job_status")
+    ordering_fields = ("created_at", "updated_at", "job_status", "started_at", "finished_at")
     filterset_fields = ("job_status", "case__id")
     advanced_filter_fields = {
         "playbook_id": "text",
@@ -37,11 +36,23 @@ class PlaybookViewSet(AuditActorMixin, viewsets.ModelViewSet):
         "remark": "text",
         "created_at": "date",
         "updated_at": "date",
+        "started_at": "date",
+        "finished_at": "date",
     }
 
     @action(detail=False, methods=["get"], url_path="definitions")
     def definitions(self, request):
         return Response(list_playbook_definitions())
+
+    @action(detail=True, methods=["get"], url_path="messages")
+    def messages(self, request, id=None):
+        playbook = self.get_object()
+        queryset = playbook.run_messages.order_by("sequence")
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = PlaybookRunMessageSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        return Response(PlaybookRunMessageSerializer(queryset, many=True).data)
 
     @action(detail=False, methods=["post"], url_path="run")
     def run(self, request):

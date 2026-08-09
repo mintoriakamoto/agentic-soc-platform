@@ -41,6 +41,7 @@ def _playbook_record(definition):
         "name": definition.name,
         "description": getattr(definition.script_class, "DESC", ""),
         "tags": tags,
+        "risk_level": getattr(definition.script_class, "RISK_LEVEL", "Low"),
         "path": str(definition.path),
         "source": _source_for_path(definition.path),
     }

@@ -81,7 +81,7 @@ v0.6.0 保持三个固定角色：
 ## 9. Confirmed functional domains
 
 1. Case 批量分诊。
-2. 案件合并。
+2. Case Relationships。
 3. Playbook 执行可观测性和控制。
 4. Custom Variables。
 5. Worker Health。
@@ -105,11 +105,10 @@ SLA 和 AI 质量评估是 v0.6.0 正式发布的阻断项。
 - Worker/Integration 统一 Operations Center；Worker Health 使用独立实现。
 - 全站 UI 国际化。
 - 旧 CLI/插件兼容层。
-- 自动 Unmerge。
 
 ## 11. Cross-domain invariants
 
-- merged source Case 默认不得进入 Dashboard、SLA、案件数量和正常列表统计。
+- Case Relationship 是弱关联，不影响 Dashboard、SLA、案件数量、路由或 Case 生命周期。
 - Case 单条编辑和批量编辑必须调用同一服务端状态机。
 - Playbook、Module 和 Worker 错误不得向 API 暴露原始凭据、响应正文或 traceback。
 - Admin 管理动作按各 Spec 写 AuditLog；高频健康遥测不写 AuditLog。

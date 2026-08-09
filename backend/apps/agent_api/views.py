@@ -17,6 +17,11 @@ from apps.artifacts.models import Artifact
 from apps.attachments.models import Attachment
 from apps.audit.context import audit_actor
 from apps.cases.models import Case
+from apps.cases.services import (
+    relationship_for_case_payload,
+    relationships_for_case,
+    suggest_related_cases,
+)
 from apps.comments.models import Comment
 from apps.comments.services import create_record_comment
 from apps.common.cursor_pagination import paginate_created_at_cursor
@@ -62,6 +67,8 @@ FOUNDATION_CAPABILITIES = [
     "case.list",
     "case.show",
     "case.update_ai",
+    "case.relationships",
+    "case.relationship_suggestions",
     "alert.list",
     "alert.show",
     "artifact.list",
@@ -177,6 +184,36 @@ class CaseAIAnalysisView(APIView):
             case.full_clean()
             case.save(update_fields=[*updates.keys(), "updated_at"])
         return agent_response(request, operation="case.update_ai", data=serialize_case(case, include_related=True), status=status.HTTP_200_OK)
+
+
+class CaseRelationshipListView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, case_id):
+        case = _find_case(case_id)
+        page = paginate_created_at_cursor(relationships_for_case(case), request)
+        data = [
+            relationship_for_case_payload(relationship, case)
+            for relationship in page.results
+        ]
+        return agent_response(
+            request,
+            operation="case.relationships",
+            data=data,
+            pagination=pagination_meta(page),
+        )
+
+
+class CaseRelationshipSuggestionView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, case_id):
+        case = _find_case(case_id)
+        return agent_response(
+            request,
+            operation="case.relationship_suggestions",
+            data=suggest_related_cases(case),
+        )
 
 
 class AlertListView(APIView):

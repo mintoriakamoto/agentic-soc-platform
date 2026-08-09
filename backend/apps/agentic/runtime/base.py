@@ -14,6 +14,7 @@ class BasePlaybook:
     NAME = ""
     DESC = ""
     TAGS = []
+    RISK_LEVEL = "Low"
     PROMPT_SLUG = ""
     SCRIPT_PATH = None
 
@@ -24,6 +25,13 @@ class BasePlaybook:
 
     def run(self):
         raise NotImplementedError
+
+    def add_run_message(self, message):
+        if self.playbook_run is None:
+            raise ValueError("Run messages require an active playbook run.")
+        from apps.agentic.services.playbooks import add_playbook_run_message
+
+        add_playbook_run_message(self.playbook_run, message)
 
     @classmethod
     def prompt_slug(cls):

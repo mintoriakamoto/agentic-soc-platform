@@ -70,6 +70,7 @@ export default function ResourceListPage({ resourceKey, actions }: ResourceListP
         }}
         onOpenResource={openRelatedDetail}
         refreshToken={tableRefreshToken}
+        readOnly={config.readOnly}
         dense
         fillParent
       />

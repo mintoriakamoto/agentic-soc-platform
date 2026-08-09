@@ -161,7 +161,6 @@ TTD 不进入 Pending 或 Warning。
 - Alert 创建并关联 Case。
 - Alert.first_seen_time 修改。
 - Alert 移动到其他 Case。
-- Case merge 迁移 Alert。
 
 TTD target 和 Severity snapshot 不变。更早 Alert 可能使 Met 变为 Breached。
 
@@ -197,12 +196,11 @@ TTD target 和 Severity snapshot 不变。更早 Alert 可能使 Met 变为 Brea
 - 旧 Case 继续进入现有 MTTD/MTTA/MTTR mean，只要满足原查询条件。
 - Dashboard 必须显示 mean 和 compliance 各自 sample count，因为样本集合不同。
 
-## 11. Case merge
+## 11. Case relationships
 
-- merged source 排除 SLA、达标率、active count 和通知。
-- target 保留自己的 TTA/TTR snapshot 和时钟。
-- Alert 迁入后 target 重算 TTD。
-- target 不继承 source target、Severity snapshot、状态或通知记录。
+- Case Relationship 不改变任何 Case SLA。
+- 关联 Case 之间不共享 target、Severity snapshot、时钟、状态或通知。
+- Artifact suggestion 和正式关系均不进入 SLA 查询条件。
 
 ## 12. Notifications
 
@@ -352,7 +350,7 @@ SLA 区块分别显示：
 - TTD compliance：Case.created_at 在窗口。
 - TTA compliance：acknowledged_time 在窗口。
 - TTR compliance：closed_time 在窗口。
-- 当前 Warning/Breached：所有活动、未合并且有 CaseSla 的 Case，不受创建时间窗口限制。
+- 当前 Warning/Breached：所有活动且有 CaseSla 的 Case，不受创建时间窗口限制。
 
 TTD 没有当前 Warning/Breach count。
 
@@ -374,7 +372,7 @@ TTD 没有当前 Warning/Breach count。
 7. Direct close 的 TTR=0 Met。
 8. 80% Warning、100% Breached，完成后 late 仍 Breached。
 9. 旧 Case 无 SLA，新 Case有 SLA。
-10. merged source 排除，target 仅重算 TTD。
+10. Case Relationship 不改变任何 Case SLA 或达标率。
 11. SLA Worker 每分钟运行并作为第 6 个 Worker 进入 Worker Health。
 12. 仅当前 Assignee 强制接收去重 Warning/Breach。
 13. 新 Assignee 可收到当前状态，未分配不通知。
@@ -387,5 +385,5 @@ TTD 没有当前 Warning/Breach count。
 - On Hold 持续计时，不反映净工作时间。
 - 重开 Case 会持续拉长同一 TTR。
 - Severity 变化不追溯，单 Case 不同阶段可能使用不同策略版本。
-- TTD 可因迟到或合并 Alert 从 Met 变为 Breached。
+- TTD 可因迟到 Alert 从 Met 变为 Breached。
 - 未分配 Case 不产生 SLA 通知。
