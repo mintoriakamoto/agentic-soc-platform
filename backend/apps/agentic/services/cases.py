@@ -1,9 +1,14 @@
 import hashlib
+import logging
+from datetime import timedelta
 
+from django.conf import settings
 from django.db import connection, transaction
 from django.utils import timezone
 
 from apps.agentic.models import AgenticJobStatus, CaseAnalysisJob
+
+logger = logging.getLogger(__name__)
 
 CASE_ANALYSIS_RESULT_FIELDS = [
     "verdict_ai",
@@ -47,15 +52,46 @@ def request_case_analysis(*, case, trigger, scheduled_at=None):
 
 
 @transaction.atomic
-def start_case_analysis_job(job):
-    locked = CaseAnalysisJob.objects.select_for_update().get(pk=job.pk)
-    if locked.status != AgenticJobStatus.PENDING:
-        raise ValueError(f"CaseAnalysisJob must be Pending before start, got {locked.status}")
-    locked.status = AgenticJobStatus.RUNNING
-    locked.started_at = timezone.now()
-    locked.error = ""
-    locked.save(update_fields=["status", "started_at", "error", "updated_at"])
-    return locked
+def claim_pending_case_analysis_job():
+    """Atomically take the next due job, so several workers never claim the same row."""
+    job = (
+        CaseAnalysisJob.objects
+        .select_for_update(skip_locked=True)
+        .filter(status=AgenticJobStatus.PENDING, scheduled_at__lte=timezone.now())
+        .order_by("scheduled_at", "created_at")
+        .first()
+    )
+    if job is None:
+        return None
+
+    job.status = AgenticJobStatus.RUNNING
+    job.started_at = timezone.now()
+    job.error = ""
+    job.save(update_fields=["status", "started_at", "error", "updated_at"])
+    return job
+
+
+def reap_stale_case_analysis_jobs():
+    """Fail jobs whose worker died mid-analysis, so they stop occupying Running forever."""
+    cutoff = timezone.now() - timedelta(seconds=settings.JOB_LEASE_TIMEOUT_SECONDS)
+    stale = CaseAnalysisJob.objects.filter(status=AgenticJobStatus.RUNNING, started_at__lt=cutoff)
+    reaped = 0
+    for job in stale.iterator():
+        with transaction.atomic():
+            locked = CaseAnalysisJob.objects.select_for_update(skip_locked=True).filter(
+                pk=job.pk,
+                status=AgenticJobStatus.RUNNING,
+                started_at__lt=cutoff,
+            ).first()
+            if locked is None:
+                continue
+            locked.status = AgenticJobStatus.FAILED
+            locked.completed_at = timezone.now()
+            locked.error = "Case analysis abandoned: no worker completed it within the lease window."
+            locked.save(update_fields=["status", "completed_at", "error", "updated_at"])
+            reaped += 1
+            logger.warning("Reaped abandoned case analysis job: pk=%s started_at=%s", locked.pk, locked.started_at)
+    return reaped
 
 
 @transaction.atomic

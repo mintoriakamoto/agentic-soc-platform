@@ -20,6 +20,7 @@ from .serializers import (
     ChangePasswordSerializer,
     LoginSerializer,
     UserAdminUpdateSerializer,
+    UserApiKeyRevealSerializer,
     UserApiKeySerializer,
     UserCreateSerializer,
     UserProfileSerializer,
@@ -267,9 +268,18 @@ class UserApiKeyViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return Response(
+            UserApiKeyRevealSerializer(serializer.instance).data,
+            status=status.HTTP_201_CREATED,
+        )
+
     @action(detail=True, methods=["post"])
     def refresh(self, request, pk=None):
         api_key = self.get_object()
         api_key.refresh_key()
         api_key.save()
-        return Response(self.get_serializer(api_key).data)
+        return Response(UserApiKeyRevealSerializer(api_key).data)

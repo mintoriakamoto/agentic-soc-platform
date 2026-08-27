@@ -63,7 +63,10 @@ class Command(BaseCommand):
                 )
             next_sleep_seconds = min(60, interval) if failed else interval
             if failed:
-                raise RuntimeError("Dashboard cache refresh failed.")
+                # Reported through the iteration result, not an exception: raising here would route
+                # to run_worker's error path, which sleeps the default interval and ignores the
+                # shortened retry computed above.
+                logger.error("Dashboard cache refresh failed for windows: %s", ",".join(failed))
 
             return WorkerIterationResult(
                 processed=bool(refreshed),

@@ -326,10 +326,8 @@ def _opencti_config_from_instance(instance, values):
 
 
 def _invalidate_siem(group):
+    # invalidate() also resets the connected SIEM clients and notifies the other processes.
     invalidate(group)
-    from integrations.siem.clients import reset_clients
-
-    reset_clients()
 
 
 class ThreatIntelAlienVaultOTXConfigView(views.APIView):

@@ -49,6 +49,16 @@ def _contains_all_q(field: str, values: list[str], value_type: str) -> Q:
     return reduce(q_and, (Q(**{f"{field}__{lookup}": value}) for value in values))
 
 
+def _negate(field: str, condition: Q) -> Q:
+    """Negate a condition without silently dropping NULL rows.
+
+    SQL evaluates ``NOT (col = 'x')`` as UNKNOWN when col is NULL, so a plain ``~Q`` excludes
+    unset rows — "verdict is not False Positive" would hide every case with no verdict yet, which
+    is usually exactly what the analyst was looking for.
+    """
+    return ~condition | Q(**{f"{field}__isnull": True})
+
+
 def _condition_q(field: str, value_type: str, operator: str, value) -> Q:
     values = _values(value)
 
@@ -64,7 +74,7 @@ def _condition_q(field: str, value_type: str, operator: str, value) -> Q:
     if operator in {"neq", "is_not"}:
         if not values:
             raise ValidationError("Filter value is required.")
-        return ~Q(**{field: values[0]})
+        return _negate(field, Q(**{field: values[0]}))
     if operator == "contains":
         if not values:
             raise ValidationError("Filter value is required.")
@@ -72,7 +82,7 @@ def _condition_q(field: str, value_type: str, operator: str, value) -> Q:
     if operator == "not_contains":
         if not values:
             raise ValidationError("Filter value is required.")
-        return ~Q(**{f"{field}__icontains": values[0]})
+        return _negate(field, Q(**{f"{field}__icontains": values[0]}))
     if operator == "contains_all":
         return _contains_all_q(field, values, value_type)
     if operator == "contains_any":
@@ -82,7 +92,7 @@ def _condition_q(field: str, value_type: str, operator: str, value) -> Q:
     if operator == "not_contains_any":
         if not values:
             raise ValidationError("Filter value is required.")
-        return ~reduce(lambda left, right: left | right, (Q(**{f"{field}__contains": value}) for value in values))
+        return _negate(field, reduce(lambda left, right: left | right, (Q(**{f"{field}__contains": value}) for value in values)))
     if operator == "is_one_of":
         if not values:
             raise ValidationError("Filter value is required.")
@@ -90,7 +100,7 @@ def _condition_q(field: str, value_type: str, operator: str, value) -> Q:
     if operator == "is_not_any_of":
         if not values:
             raise ValidationError("Filter value is required.")
-        return ~Q(**{f"{field}__in": values})
+        return _negate(field, Q(**{f"{field}__in": values}))
     if operator == "lt":
         if not values:
             raise ValidationError("Filter value is required.")
@@ -111,7 +121,7 @@ def _condition_q(field: str, value_type: str, operator: str, value) -> Q:
         if len(values) != 2:
             raise ValidationError("Range filters require two values.")
         query = Q(**{f"{field}__gte": values[0], f"{field}__lte": values[1]})
-        return ~query if operator == "not_between" else query
+        return _negate(field, query) if operator == "not_between" else query
 
     raise ValidationError(f"Unsupported filter operator: {operator}")
 

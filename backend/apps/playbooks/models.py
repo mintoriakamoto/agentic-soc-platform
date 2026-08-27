@@ -29,6 +29,8 @@ class Playbook(BaseModel):
         help_text="Background job status (后台任务状态)",
     )
     job_id = models.CharField(max_length=255, blank=True, default="", help_text="Background job ID (后台任务 ID)")
+    # started_at doubles as the reaper's lease stamp: a run still Running long after it was
+    # claimed had its worker die, and gets failed.
     started_at = models.DateTimeField(null=True, blank=True, help_text="Execution start time (执行开始时间)")
     finished_at = models.DateTimeField(null=True, blank=True, help_text="Execution finish time (执行结束时间)")
     remark = models.TextField(blank=True, default="", help_text="Execution remark (执行备注)")

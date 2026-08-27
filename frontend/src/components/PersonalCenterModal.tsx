@@ -48,6 +48,7 @@ export default function PersonalCenterModal({ open, onClose }: PersonalCenterMod
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
   const [apiKeysLoading, setApiKeysLoading] = useState(false)
   const [apiKeyModalOpen, setApiKeyModalOpen] = useState(false)
+  const [issuedKey, setIssuedKey] = useState('')
 
   useEffect(() => {
     if (!open || !user) return
@@ -129,13 +130,13 @@ export default function PersonalCenterModal({ open, onClose }: PersonalCenterMod
   const createApiKey = async () => {
     try {
       const values = await apiKeyForm.validateFields()
-      await client.post('/auth/api-keys/', {
+      const { data } = await client.post<ApiKey>('/auth/api-keys/', {
         name: values.name,
         expires_at: values.expires_at ? (values.expires_at as Dayjs).toISOString() : null,
       })
       apiKeyForm.resetFields()
       setApiKeyModalOpen(false)
-      message.success('API key created')
+      setIssuedKey(data.key)
       loadApiKeys()
     } catch (error: unknown) {
       const response = error as { response?: { data?: unknown } }
@@ -145,8 +146,8 @@ export default function PersonalCenterModal({ open, onClose }: PersonalCenterMod
 
   const refreshApiKey = async (id: number) => {
     try {
-      await client.post(`/auth/api-keys/${id}/refresh/`)
-      message.success('API key refreshed')
+      const { data } = await client.post<ApiKey>(`/auth/api-keys/${id}/refresh/`)
+      setIssuedKey(data.key)
       loadApiKeys()
     } catch {
       message.error('Failed to refresh API key')
@@ -168,7 +169,7 @@ export default function PersonalCenterModal({ open, onClose }: PersonalCenterMod
     {
       title: 'Key',
       dataIndex: 'key',
-      render: (value: string) => <Input.Password value={value} readOnly  />,
+      render: (value: string) => <Typography.Text type="secondary" code>{value}</Typography.Text>,
     },
     { title: 'Expires At', dataIndex: 'expires_at', width: 160, render: (value) => value ? new Date(String(value)).toLocaleString() : 'Never' },
     { title: 'Last Used', dataIndex: 'last_used_at', width: 160, render: (value) => value ? new Date(String(value)).toLocaleString() : '—' },
@@ -178,8 +179,7 @@ export default function PersonalCenterModal({ open, onClose }: PersonalCenterMod
       width: 120,
       render: (_value, record) => (
         <Space>
-          <Button size="small" type="text" icon={<CopyOutlined />} onClick={() => copyText(record.key)} />
-          <Popconfirm title="Refresh API key?" onConfirm={() => refreshApiKey(record.id)}>
+          <Popconfirm title="Refresh this key? The current key stops working immediately." onConfirm={() => refreshApiKey(record.id)}>
             <Button size="small" type="text" icon={<ReloadOutlined />} />
           </Popconfirm>
           <Popconfirm title="Delete API key?" okButtonProps={{ danger: true }} onConfirm={() => deleteApiKey(record.id)}>
@@ -317,6 +317,24 @@ export default function PersonalCenterModal({ open, onClose }: PersonalCenterMod
           <Form.Item name="name" label="Name" rules={[{ required: true }]}><Input /></Form.Item>
           <Form.Item name="expires_at" label="Expires At"><DatePicker showTime placeholder="Leave empty to never expire" style={{ width: '100%' }} /></Form.Item>
         </Form>
+      </Modal>
+      <Modal
+        title="Copy your API key now"
+        open={Boolean(issuedKey)}
+        onCancel={() => setIssuedKey('')}
+        destroyOnHidden
+        footer={<Button type="primary" onClick={() => setIssuedKey('')}>Done</Button>}
+      >
+        <Space vertical size="small" style={{ width: '100%' }}>
+          <Typography.Text type="secondary">
+            This is the only time the full key is shown. The list displays a masked version from here on.
+          </Typography.Text>
+          <Input
+            readOnly
+            value={issuedKey}
+            addonAfter={<Button size="small" type="text" icon={<CopyOutlined />} onClick={() => copyText(issuedKey)} />}
+          />
+        </Space>
       </Modal>
     </>
   )

@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 import redis
@@ -9,6 +10,8 @@ from apps.common.redis_stream import RedisStreamClient
 from integrations.siem.registry import reload_registry, scan_registry_configs
 
 MAX_STREAM_MESSAGES = 20
+
+logger = logging.getLogger(__name__)
 
 
 def _source_for_path(path):
@@ -152,7 +155,9 @@ def list_siem_definition_records(*, reload=False):
 
 
 def known_module_streams():
-    modules, _errors = scan_module_definitions()
+    # Cached: this backs a per-request allow-list check, and re-executing every module file on
+    # each call would be needless work.
+    modules, _errors = scan_module_definitions(use_cache=True)
     return {definition.stream_name for definition in modules}
 
 

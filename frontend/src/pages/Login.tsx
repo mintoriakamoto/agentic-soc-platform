@@ -20,7 +20,7 @@ export default function Login() {
     setLoading(true)
     try {
       const { data } = await login(values.username, values.password, values.auth_type)
-      setAuth(data.access, data.user)
+      setAuth(data.access, data.user, data.refresh)
       navigate(nextPath, { replace: true })
     } catch { message.error('Invalid credentials') }
     finally { setLoading(false) }

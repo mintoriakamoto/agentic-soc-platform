@@ -10,8 +10,23 @@ from .models import Attachment
 from .serializers import AttachmentSerializer
 
 
+# Content types that are safe to render in the app's own origin. Anything outside this list —
+# notably text/html and image/svg+xml, which can carry script — is forced to download so an
+# uploaded file cannot execute in a viewer's session.
+INLINE_SAFE_CONTENT_TYPES = frozenset({
+    "image/png",
+    "image/jpeg",
+    "image/gif",
+    "image/webp",
+    "image/bmp",
+    "image/x-icon",
+    "application/pdf",
+})
+
+
 def attachment_file_response(attachment):
     content_type = mimetypes.guess_type(attachment.filename)[0] or "application/octet-stream"
+    render_inline = content_type in INLINE_SAFE_CONTENT_TYPES
 
     try:
         file_obj = attachment.file.open("rb")
@@ -23,12 +38,15 @@ def attachment_file_response(attachment):
             raise Http404("Attachment file not found") from exc
         raise
 
-    return FileResponse(
+    response = FileResponse(
         file_obj,
-        as_attachment=False,
+        as_attachment=not render_inline,
         filename=attachment.filename,
         content_type=content_type,
     )
+    response["X-Content-Type-Options"] = "nosniff"
+    response["Content-Security-Policy"] = "default-src 'none'; sandbox"
+    return response
 
 class AttachmentViewSet(viewsets.ModelViewSet):
     serializer_class = AttachmentSerializer

@@ -1,9 +1,12 @@
 import os
+import tomllib
 from datetime import timedelta
+from importlib.metadata import PackageNotFoundError, version as _package_version
 from pathlib import Path
 from urllib.parse import quote
 
 from botocore.config import Config
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 from apps.common.logging import (
@@ -30,12 +33,46 @@ def _env_bool(name, default=False):
     return value.lower() in {"1", "true", "yes", "on"}
 
 
-SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-secret-key-change-in-prod-32-byte-minimum")
+DEV_SECRET_KEY = "dev-secret-key-change-in-prod-32-byte-minimum"
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", DEV_SECRET_KEY)
 DEBUG = os.environ.get("DJANGO_DEBUG", "false").lower() == "true"
+if not DEBUG and SECRET_KEY == DEV_SECRET_KEY:
+    raise ImproperlyConfigured(
+        "DJANGO_SECRET_KEY must be set when DJANGO_DEBUG is false. The development fallback key is "
+        "published in the repository, so anything signed with it — including JWTs — is forgeable."
+    )
 ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "*").split(",")
+
+# Optional shared secret for the inbound alert webhooks. When set, callers must present it as
+# X-ASP-Webhook-Token. Left empty the endpoints stay open, which is only safe on a trusted network.
+WEBHOOK_SHARED_TOKEN = os.environ.get("ASP_WEBHOOK_TOKEN", "").strip()
 ASP_WEB_TIMEOUT = _env_int("ASP_WEB_TIMEOUT", 210)
 SYNC_OPERATION_TIMEOUT_SECONDS = max(1, ASP_WEB_TIMEOUT - 30)
 CONFIG_TEST_TIMEOUT_SECONDS = 10
+
+def _project_version():
+    """Single source of truth for the version the OpenAPI schema and agent API report.
+
+    Three hardcoded strings had already drifted apart. pyproject.toml is authoritative and always
+    ships in the image; installed metadata is the fallback for anyone running from a wheel.
+    """
+    pyproject = BASE_DIR / "pyproject.toml"
+    try:
+        with pyproject.open("rb") as handle:
+            return tomllib.load(handle)["project"]["version"]
+    except (OSError, KeyError, tomllib.TOMLDecodeError):
+        pass
+    try:
+        return _package_version("asp")
+    except PackageNotFoundError:
+        return "0.0.0+unknown"
+
+
+ASP_VERSION = _project_version()
+
+# How long a claimed background job may stay Running before a worker treats it as abandoned.
+# Set comfortably above the slowest expected LLM playbook so live runs are never reaped.
+JOB_LEASE_TIMEOUT_SECONDS = _env_int("ASP_JOB_LEASE_TIMEOUT_SECONDS", 3600, minimum=60)
 
 INSTALLED_APPS = [
     "django.contrib.auth",
@@ -83,6 +120,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "apps.common.middleware.RuntimeConfigFreshnessMiddleware",
 ]
 
 ROOT_URLCONF = "asp.urls"
@@ -173,7 +211,7 @@ REST_FRAMEWORK = {
 SPECTACULAR_SETTINGS = {
     "TITLE": "Agentic SOC Platform API",
     "DESCRIPTION": "HTTP API for Agentic SOC Platform. External automation integrations should prefer API keys.",
-    "VERSION": "0.5.2",
+    "VERSION": ASP_VERSION,
     "SERVE_INCLUDE_SCHEMA": False,
     "COMPONENT_SPLIT_REQUEST": True,
     "SWAGGER_UI_DIST": "SIDECAR",

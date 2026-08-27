@@ -50,8 +50,10 @@ class BackendQueryResult:
 
 def _build_filter_must_clauses(time_field: str, time_start: str, time_end: str, filters: dict) -> list[dict[str, Any]]:
     clauses: list[dict[str, Any]] = [build_time_range_clause(time_field, time_start, time_end)]
-    for field, value in filters.items():
-        clauses.append({"terms": {field: value}} if isinstance(value, list) else {"term": {field: value}})
+    for field_name, value in filters.items():
+        clauses.append(
+            {"terms": {field_name: value}} if isinstance(value, list) else {"term": {field_name: value}}
+        )
     return clauses
 
 
@@ -205,11 +207,11 @@ class SplunkQueryBackend:
     @classmethod
     def execute_structured_query(cls, input_data: AdaptiveQueryInput) -> BackendQueryResult:
         search_query = f"search index=\"{format_splunk_index(input_data.index_name)}\""
-        for field, value in input_data.filters.items():
+        for field_name, value in input_data.filters.items():
             if isinstance(value, list):
-                search_query += f" ({' OR '.join(f'{field}=\"{v}\"' for v in value)})"
+                search_query += f" ({' OR '.join(f'{field_name}=\"{v}\"' for v in value)})"
             else:
-                search_query += f" {field}=\"{value}\""
+                search_query += f" {field_name}=\"{value}\""
 
         return cls._execute_and_build(input_data.index_name, search_query,
                                       input_data.time_range_start, input_data.time_range_end,

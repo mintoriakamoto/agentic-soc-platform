@@ -307,6 +307,11 @@ class Artifact(BaseModel):
         ordering = ["-created_at"]
         indexes = [
             models.Index(fields=["-created_at", "-id"], name="artifact_created_id_idx"),
+            # get_or_create_artifact filters on exactly these three columns for every artifact on
+            # every ingested alert; without this the dedup lookup is a sequential scan that grows
+            # with the whole table.
+            models.Index(fields=["name", "type", "role"], name="artifact_identity_idx"),
+            models.Index(fields=["value"], name="artifact_value_idx"),
         ]
 
     def save(self, *args, **kwargs):

@@ -1,11 +1,12 @@
 import logging
 import re
 import uuid
+from datetime import timedelta
 from pathlib import Path
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Max
+from django.db.models import Max, Q
 from django.utils import timezone
 
 from apps.agentic.runtime.base import BasePlaybook
@@ -157,7 +158,7 @@ def create_pending_playbook_run(*, name, case, user=None, user_input=""):
 def claim_pending_playbook_run():
     playbook = (
         Playbook.objects
-        .select_for_update()
+        .select_for_update(skip_locked=True)
         .filter(job_status=PlaybookJobStatus.PENDING)
         .order_by("created_at", "id")
         .first()
@@ -180,6 +181,38 @@ def claim_pending_playbook_run():
             "updated_at",
         ])
     return playbook
+
+
+def reap_stale_playbook_runs():
+    """Fail runs whose worker died mid-execution.
+
+    Nothing else moves a row out of Running, so without this a killed worker leaves the run
+    stuck there forever — never retried, never surfaced.
+    """
+    cutoff = timezone.now() - timedelta(seconds=settings.JOB_LEASE_TIMEOUT_SECONDS)
+    # started_at is null for runs claimed before it existed; updated_at is when they were claimed,
+    # so it reaps that backlog too.
+    expired = Q(started_at__lt=cutoff) | Q(started_at__isnull=True, updated_at__lt=cutoff)
+    stale = Playbook.objects.filter(expired, job_status=PlaybookJobStatus.RUNNING)
+    reaped = 0
+    for playbook in stale.iterator():
+        with transaction.atomic():
+            locked = Playbook.objects.select_for_update(skip_locked=True).filter(
+                expired,
+                pk=playbook.pk,
+                job_status=PlaybookJobStatus.RUNNING,
+            ).first()
+            if locked is None:
+                continue
+            locked.job_status = PlaybookJobStatus.FAILED
+            locked.finished_at = timezone.now()
+            locked.remark = "Playbook run abandoned: no worker completed it within the lease window."
+            with suppress_audit():
+                locked.save(update_fields=["job_status", "finished_at", "remark", "updated_at"])
+            reaped += 1
+            logger.warning("Reaped abandoned playbook run: pk=%s started_at=%s", locked.pk, locked.started_at)
+        notify_playbook_completion(locked)
+    return reaped
 
 
 @transaction.atomic

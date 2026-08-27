@@ -46,8 +46,8 @@ def decode_cursor(cursor):
         payload = json.loads(base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8"))
         created_at = parse_datetime(str(payload.get("created_at", "")))
         record_id = str(payload.get("id") or "")
-    except (TypeError, ValueError, json.JSONDecodeError, UnicodeDecodeError, binascii.Error, AttributeError):
-        raise ValidationError({"cursor": "Invalid cursor."})
+    except (TypeError, ValueError, json.JSONDecodeError, UnicodeDecodeError, binascii.Error, AttributeError) as exc:
+        raise ValidationError({"cursor": "Invalid cursor."}) from exc
 
     if created_at is None:
         raise ValidationError({"cursor": "Invalid cursor."})
