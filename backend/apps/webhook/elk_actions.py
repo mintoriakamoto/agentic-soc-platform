@@ -5,7 +5,7 @@ from datetime import UTC, timedelta
 
 from django.utils import timezone
 
-from apps.settings.runtime_config import get_elk_config, refresh_if_stale
+from apps.settings.runtime_config import get_elk_config, refresh_elk_config
 from apps.webhook.service import handle_kibana_webhook
 from integrations.siem.clients import get_elk_client
 
@@ -40,7 +40,9 @@ class ELKActionProcessor:
 
     @staticmethod
     def load_config():
-        refresh_if_stale()
+        # This poller acts on its own config every tick, so it re-reads it rather than waiting
+        # for another process to announce a change.
+        refresh_elk_config()
         return get_elk_config()
 
     @staticmethod

@@ -195,3 +195,16 @@ def refresh_if_stale():
     _local_generation = current
     _clear_local()
     return True
+
+
+def refresh_elk_config():
+    """Re-read this process's ELK config from the database.
+
+    For the ELK poller, which acts on its own config every tick and so must see a change even
+    when it was written directly rather than through the settings API. Local only: it clears
+    one cache here and deliberately does not bump the generation, which would make every other
+    process drop its caches on every tick of this loop, and it leaves the connected SIEM
+    clients alone so they are not torn down and rebuilt on every poll.
+    """
+    refresh_if_stale()
+    get_elk_config.cache_clear()
